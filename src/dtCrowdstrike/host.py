@@ -29,7 +29,7 @@ class Host(object):
             logging.exception(f'Failed to read host details. {str(ex)}')
             raise ex
 
-    def __get_updated_details(self):
+    def __get_updated_details(self, force=False):
         if not self.__host_details:
             self.__host_details = self.__read_details()
             self.__host_details_last_collected = datetime.now()
@@ -38,10 +38,18 @@ class Host(object):
             self.__host_details = self.__read_details()
             self.__host_details_last_collected = datetime.now()
 
+        if force:
+            self.__host_details = self.__read_details()
+            self.__host_details_last_collected = datetime.now()
+
         return self.__host_details
 
     def __hosts(self):
         return Hosts(auth_object=self._auth.get_falcon_auth())
+
+    def get_host_status(self):
+        self.__get_updated_details(force=True)
+        return self.get_host_details()['status']
 
     def get_host_details(self):
         return self.__get_updated_details()
@@ -89,3 +97,63 @@ class Host(object):
                 yield Detection(auth=self._auth, detect_id=id)
         else:
             raise Exception(f'Failed to read detections ({str(detects)})')
+
+    def isolate(self):
+        req_body = {
+            "ids": [self.aid]
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="contain", body=req_body)
+        if response['status_code'] == 202:
+            return {"complete": True, "success": True, "operation": "isolate"}
+        else:
+            return {"complete": True, "success": False, "operation": "isolate", "response": response}
+
+    def lift_isolation(self):
+        req_body = {
+            "ids": [self.aid]
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="lift_containment", body=req_body)
+        if response['status_code'] == 202:
+            return {"complete": True, "success": True, "operation": "lift_isolation"}
+        else:
+            return {"complete": True, "success": False, "operation": "lift_isolation", "response": response}
+
+    def hide_host(self):
+        req_body = {
+            "ids": [self.aid]
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="hide_host", body=req_body)
+        if response['status_code'] == 202:
+            return {"complete": True, "success": True, "operation": "hide_host"}
+        else:
+            return {"complete": True, "success": False, "operation": "hide_host", "response": response}
+
+    def unhide_host(self):
+        req_body = {
+            "ids": [self.aid]
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="unhide_host", body=req_body)
+        if response['status_code'] == 202:
+            return {"complete": True, "success": True, "operation": "unhide_host"}
+        else:
+            return {"complete": True, "success": False, "operation": "unhide_host", "response": response}
+
+    def suppress_detections(self):
+        req_body = {
+            "ids": [self.aid]
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="detection_suppress", body=req_body)
+        if response['status_code'] == 202:
+            return {"complete": True, "success": True, "operation": "suppress_detections"}
+        else:
+            return {"complete": True, "success": False, "operation": "suppress_detections", "response": response}
+
+    def unsuppress_detections(self):
+        req_body = {
+            "ids": [self.aid]
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="detection_unsuppress", body=req_body)
+        if response['status_code'] == 202:
+            return {"complete": True, "success": True, "operation": "unsuppress_detections"}
+        else:
+            return {"complete": True, "success": False, "operation": "unsuppress_detections", "response": response}

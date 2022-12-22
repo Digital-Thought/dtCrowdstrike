@@ -73,6 +73,12 @@ class BulkHostOperations(object):
         return {"cloud_request_id": cloud_request_id, "error": stderr is not None and len(stderr) > 0,
                 "stdout": stdout, "stderr": stderr}
 
+    def __host_ids(self):
+        ids = []
+        for host in self.hosts:
+            ids.append(host.aid)
+        return ids
+
     def _run_command(self, base_command, command_string):
         outcomes = []
         responses = []
@@ -204,3 +210,116 @@ class BulkHostOperations(object):
                                                                session_id=resp['session_id'],
                                                                aid=resp['aid'],
                                                                error_msg=f"Failed to get file '{filename}' ({str(resp)}")
+
+    def isolate(self):
+        req_body = {
+            "ids": self.__host_ids()
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="contain", body=req_body)
+        if "resources" in response['body'] and len(response['body']['resources']) > 0:
+            for resource in response['body']['resources']:
+                yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
+                                                       aid=resource['id'], command="isolate")
+
+        if "errors" in response['body'] and len(response['body']['errors']) > 0:
+            for error in response['body']['errors']:
+                for aid in self.__host_ids():
+                    if aid in error['message']:
+                        yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
+                                                               batch_id=self.batch_id,
+                                                               aid=aid, command="isolate",
+                                                               error_msg=error['message'])
+
+    def lift_isolation(self):
+        req_body = {
+            "ids": self.__host_ids()
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="lift_containment", body=req_body)
+        if "resources" in response['body'] and len(response['body']['resources']) > 0:
+            for resource in response['body']['resources']:
+                yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
+                                                       aid=resource['id'], command="lift_isolation")
+
+        if "errors" in response['body'] and len(response['body']['errors']) > 0:
+            for error in response['body']['errors']:
+                for aid in self.__host_ids():
+                    if aid in error['message']:
+                        yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
+                                                               aid=aid, command="lift_isolation",
+                                                               error_msg=error['message'])
+
+    def hide_host(self):
+        req_body = {
+            "ids": self.__host_ids()
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="hide_host", body=req_body)
+        if "resources" in response['body'] and len(response['body']['resources']) > 0:
+            for resource in response['body']['resources']:
+                yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
+                                                       aid=resource['id'], command="hide_host")
+
+        if "errors" in response['body'] and len(response['body']['errors']) > 0:
+            for error in response['body']['errors']:
+                for aid in self.__host_ids():
+                    if aid in error['message']:
+                        yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
+                                                               batch_id=self.batch_id,
+                                                               aid=aid, command="hide_host",
+                                                               error_msg=error['message'])
+
+    def unhide_host(self):
+        req_body = {
+            "ids": self.__host_ids()
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="unhide_host", body=req_body)
+        if "resources" in response['body'] and len(response['body']['resources']) > 0:
+            for resource in response['body']['resources']:
+                yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
+                                                       aid=resource['id'], command="unhide_host")
+
+        if "errors" in response['body'] and len(response['body']['errors']) > 0:
+            for error in response['body']['errors']:
+                for aid in self.__host_ids():
+                    if aid in error['message']:
+                        yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
+                                                               batch_id=self.batch_id,
+                                                               aid=aid, command="unhide_host",
+                                                               error_msg=error['message'])
+
+    def suppress_detections(self):
+        req_body = {
+            "ids": self.__host_ids()
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="detection_suppress", body=req_body)
+        if "resources" in response['body'] and len(response['body']['resources']) > 0:
+            for resource in response['body']['resources']:
+                yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
+                                                       aid=resource['id'], command="suppress_detections")
+
+        if "errors" in response['body'] and len(response['body']['errors']) > 0:
+            for error in response['body']['errors']:
+                for aid in self.__host_ids():
+                    if aid in error['message']:
+                        yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
+                                                               batch_id=self.batch_id,
+                                                               aid=aid, command="suppress_detections",
+                                                               error_msg=error['message'])
+
+    def unsuppress_detections(self):
+        req_body = {
+            "ids": self.__host_ids()
+        }
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="detection_unsuppress", body=req_body)
+        if "resources" in response['body'] and len(response['body']['resources']) > 0:
+            for resource in response['body']['resources']:
+                yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
+                                                       aid=resource['id'], command="unsuppress_detections")
+
+        if "errors" in response['body'] and len(response['body']['errors']) > 0:
+            for error in response['body']['errors']:
+                for aid in self.__host_ids():
+                    if aid in error['message']:
+                        yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
+                                                               batch_id=self.batch_id,
+                                                               aid=aid, command="unsuppress_detections",
+                                                               error_msg=error['message'])

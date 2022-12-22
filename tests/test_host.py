@@ -19,9 +19,18 @@ clean_initial_script = '#!/bin/sh\n[ -e "ADG-initial.out" ] && rm "ADG-initial.o
 print(f"{dtCrowdstrike.title()} - Version: {dtCrowdstrike.version()}")
 with CrowdstrikeClient(client_secret=os.environ['CLIENT_SECRET'], client_id=os.environ['CLIENT_ID']) as client:
     hosts = []
-    for host in client.find_hosts('machine_domain:"AD.SBSBMI.DEV"'):
-        hosts.append(host)
-    client.get_utilities().bulk_exporter().export_hosts_as_json(host_producer=hosts)
+    hosts.append(client.get_host_by_id("cb84837f1bf84718ac228cb8fd24923e"))
+    hosts.append(client.get_host("ARTAWSDVY01"))
+    hosts.append(client.get_host("ARTAWSDVY02"))
+    for outcome in client.get_utilities().bulk_host_operations(hosts).lift_isolation():
+        print(outcome)
+    for host in hosts:
+        print(host.get_host_status())
+
+    # hosts = []
+    # for host in client.find_hosts('machine_domain:"AD.SBSBMI.DEV"'):
+    #     hosts.append(host)
+    # print(client.get_utilities().bulk_exporter().export_hosts_as_json(host_producer=hosts))
     # group = client.create_dynamic_host_group(name="AD.SBSBMI.DEV", description="BMI AWS Domain Instance Machines", rule='machine_domain:"AD.SBSBMI.DEV"')
     # print(group)
     # hosts = []

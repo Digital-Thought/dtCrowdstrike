@@ -15,7 +15,7 @@ class BulkOperationOutcome(object):
         super().__init__()
         self._auth = auth
         self.client = client
-        self.error = stderr is not None and len(stderr.strip()) > 0
+        self.error = (stderr is not None and len(stderr.strip()) > 0) or (error_msg is not None and len(error_msg.strip()) > 0)
         self.aid = aid
         self.batch_id = batch_id
         self.session_id = session_id
@@ -25,6 +25,9 @@ class BulkOperationOutcome(object):
         self.stderr = stderr
         self.command = command
         self.content = content
+
+    def __str__(self) -> str:
+        return f'<Outcome to bulk operation "{self.command}" success is {not self.error} for host {self.aid}>'
 
     @classmethod
     def from_get_file_success(cls, auth, client, batch_id, session_id, aid, cloud_request_id, content):
@@ -46,6 +49,11 @@ class BulkOperationOutcome(object):
         return cls(auth=auth, client=client, batch_id=batch_id, session_id=session_id, aid=aid,
                    error_msg=error_msg, stdout=stdout, stderr=stderr, command=command,
                    cloud_request_id=cloud_request_id)
+
+    @classmethod
+    def from_action(cls, auth, client, batch_id, aid, command, error_msg=None):
+        return cls(auth=auth, client=client, batch_id=batch_id, aid=aid,
+                   error_msg=error_msg, command=command, session_id=None)
 
     def get_host(self):
         return Host(auth=self._auth, aid=self.aid)

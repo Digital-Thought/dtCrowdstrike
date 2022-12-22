@@ -89,6 +89,9 @@ class CrowdstrikeClient(object):
     def count_hosts(self, query):
         self.get_utilities().count(self.find_hosts(query))
 
+    def get_host_by_id(self, aid):
+        return Host(auth=self._auth, aid=aid)
+
     def find_hosts(self, query):
         hosts = Hosts(auth_object=self._auth.get_falcon_auth())
         offset = None
