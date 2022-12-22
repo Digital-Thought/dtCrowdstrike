@@ -1,0 +1,4 @@
+crowdstrike-falconpy
+aniso8601
+pandas
+openpyxl
