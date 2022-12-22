@@ -15,6 +15,7 @@ class HostGroup(object):
         self.client = client
         self.__group_details = None
         self.__group_details_last_collected = None
+        self.__group_deleted = False
 
     def __str__(self) -> str:
         return f"<Crowdstrike Falcon Host Group: {self.group_id}>"
@@ -24,14 +25,18 @@ class HostGroup(object):
         if response['status_code'] == 200 and len(response['body']['resources']) == 1:
             return response['body']['resources'][0]
         else:
-            raise Exception(f'Failed to read Group Details for Group ID {self.group_id}')
+            raise Exception(f'Failed to read Group Details for Group ID {self.group_id} -> ({response})')
 
-    def __get_updated_details(self):
+    def __get_updated_details(self, force=False):
         if not self.__group_details:
             self.__group_details = self.__read_details()
             self.__group_details_last_collected = datetime.now()
 
         if (datetime.now() - self.__group_details_last_collected).seconds > 600:
+            self.__group_details = self.__read_details()
+            self.__group_details_last_collected = datetime.now()
+
+        if force or self.__group_deleted:
             self.__group_details = self.__read_details()
             self.__group_details_last_collected = datetime.now()
 
@@ -103,7 +108,7 @@ class HostGroup(object):
         }
         response = self._auth.get_falcon_harness().command("performGroupAction", action_name="add-hosts", body=req_body)
 
-        if response['status_code'] > 201:
+        if response['status_code'] <= 201:
             return {"complete": True, "success": True, "operation": "add-hosts", "filter_query": filter_query}
         else:
             return {"complete": True, "success": False, "response": response, "operation": "add-hosts",
@@ -128,7 +133,7 @@ class HostGroup(object):
         }
         response = self._auth.get_falcon_harness().command("performGroupAction", action_name="remove-hosts", body=req_body)
 
-        if response['status_code'] > 201:
+        if response['status_code'] <= 201:
             return {"complete": True, "success": True, "operation": "remove-hosts"}
         else:
             return {"complete": True, "success": False, "response": response, "operation": "remove-hosts"}
@@ -145,7 +150,8 @@ class HostGroup(object):
 
         response = self._auth.get_falcon_harness().command("updateHostGroups", body=req_body)
 
-        if response['status_code'] > 201:
+        if response['status_code'] <= 201:
+            self.__get_updated_details(force=True)
             return {"complete": True, "success": True, "operation": "set-name", "value": name}
         else:
             return {"complete": True, "success": False, "response": response, "operation": "set-name", "value": name}
@@ -162,8 +168,18 @@ class HostGroup(object):
 
         response = self._auth.get_falcon_harness().command("updateHostGroups", body=req_body)
 
-        if response['status_code'] > 201:
+        if response['status_code'] <= 201:
+            self.__get_updated_details(force=True)
             return {"complete": True, "success": True, "operation": "set-description", "value": description}
         else:
             return {"complete": True, "success": False, "response": response, "operation": "set-description",
                     "value": description}
+
+    def delete(self):
+        response = self._auth.get_falcon_harness().command("deleteHostGroups", ids=[self.group_id])
+        if response['status_code'] <= 201:
+            self.__group_deleted = True
+            return {"complete": True, "success": True, "operation": "delete-group", "value": None}
+        else:
+            return {"complete": True, "success": False, "response": response, "operation": "delete-group",
+                    "value": None}
