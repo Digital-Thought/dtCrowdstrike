@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import time
 
 import py7zr
@@ -39,6 +40,7 @@ class RealTimeResponse(object):
         stderr = None
         stdout = None
         while running:
+            time.sleep(random.randint(5, 10))  # Give it some time before the next check on the status
             result = self.__rtr_admin().check_admin_command_status(cloud_request_id=cloud_request_id,
                                                                    sequence=0)
             running = not result['body']['resources'][0]['complete']
@@ -51,9 +53,6 @@ class RealTimeResponse(object):
                     stdout = execution['stdout']
                 if "stderr" in execution:
                     stderr = execution['stderr']
-
-            if running:
-                time.sleep(5)  # Give it some time before the next check on the status
 
         return {"cloud_request_id": cloud_request_id, "error": stderr is not None and len(stderr) > 0,
                 "stdout": stdout, "stderr": stderr}
