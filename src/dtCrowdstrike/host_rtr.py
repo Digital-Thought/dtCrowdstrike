@@ -1,5 +1,7 @@
 import logging
 import os
+import time
+
 import py7zr
 import csv
 import io
@@ -49,6 +51,9 @@ class RealTimeResponse(object):
                     stdout = execution['stdout']
                 if "stderr" in execution:
                     stderr = execution['stderr']
+
+            if running:
+                time.sleep(5)  # Give it some time before the next check on the status
 
         return {"cloud_request_id": cloud_request_id, "error": stderr is not None and len(stderr) > 0,
                 "stdout": stdout, "stderr": stderr}

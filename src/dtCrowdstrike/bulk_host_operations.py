@@ -1,3 +1,5 @@
+import time
+
 import pandas as pd
 from falconpy import Hosts
 from falconpy import RealTimeResponse as RTR, RealTimeResponseAdmin as RTRAdmin
@@ -17,6 +19,8 @@ class BulkHostOperations(object):
         self.hosts = hosts
         self.batch_id = None
         self.sessions = None
+        self.successful_hosts = []
+        self.successful_sessions = []
         self.__init_sessions()
 
     def __enter__(self):
@@ -43,8 +47,18 @@ class BulkHostOperations(object):
         if response['status_code'] == 201:
             self.batch_id = response['body']['batch_id']
             self.sessions = response['body']['resources']
+            for aid in self.sessions:
+                if 'session_id' in self.sessions[aid] and len(self.sessions[aid]['session_id']) > 0 and \
+                        self.sessions[aid]['complete']:
+                    self.successful_hosts.append(aid)
+                    self.successful_sessions.append(self.sessions[aid]['session_id'])
+            if len(self.successful_sessions) == 0:
+                raise Exception(f'Failed to initialise batch RTR session for {len(self.hosts)} hosts')
         else:
             raise Exception(f'Failed to initialise batch RTR session for {len(self.hosts)} hosts')
+
+    def all_sessions_connected(self):
+        return len(self.successful_sessions) == len(self.hosts)
 
     def refresh(self):
         self._auth.get_falcon_harness().command("BatchRefreshSessions", body={"batch_id": self.batch_id})
@@ -69,7 +83,11 @@ class BulkHostOperations(object):
                     stdout = execution['stdout']
                 if "stderr" in execution:
                     stderr = execution['stderr']
+            if running:
+                time.sleep(2)  # give it a moment between calls
+                self.refresh()
 
+        print(f'completed {cloud_request_id}')
         return {"cloud_request_id": cloud_request_id, "error": stderr is not None and len(stderr) > 0,
                 "stdout": stdout, "stderr": stderr}
 
@@ -82,8 +100,10 @@ class BulkHostOperations(object):
     def _run_command(self, base_command, command_string):
         outcomes = []
         responses = []
-        for key in self.sessions:
+        for key in self.successful_hosts:
+            print(f'refresh before {key}')
             self.refresh()
+            print(f'running command on {key}')
             resp = self.__rtr_admin().execute_admin_command(base_command=base_command,
                                                             command_string=command_string,
                                                             session_id=self.sessions[key]['session_id'], persist=False)
@@ -92,9 +112,10 @@ class BulkHostOperations(object):
             responses.append(resp)
 
         for resp in responses:
-            outcome = {}
+            outcome = {"cloud_request_id": -1, "stdout": "stdout", "stderr": "stderr"}
             if "resources" in resp['body'] and len(resp['body']['resources']) > 0:
                 for response in resp['body']['resources']:
+                    print(f'Waiting for {response["cloud_request_id"]} on AID: {resp["aid"]}')
                     outcome = self.__wait_for_response(response['cloud_request_id'])
 
             else:
@@ -104,16 +125,17 @@ class BulkHostOperations(object):
                                                                   batch_id=self.batch_id, command=command_string,
                                                                   cloud_request_id=outcome['cloud_request_id'],
                                                                   stdout=outcome['stdout'],
-                                                                  stderr=outcome['stdout'],
+                                                                  stderr=outcome['stderr'],
                                                                   session_id=resp['session_id'],
                                                                   aid=resp['aid'],
                                                                   error_msg=outcome.get("exception", None)))
         return outcomes
 
     def file_exists(self, file_absolute_path):
-        exists = False
+        exists = True
+        self.refresh()
         for outcome in self._run_command(base_command="ls", command_string=f'ls "{file_absolute_path}"'):
-            exists = exists and not outcome['error']
+            exists = exists and (outcome.stdout and "directory listing" in outcome.stdout.lower())
         return exists
 
     def run_command(self, command, parameters=None, timeout=None, encapsulate="```"):
@@ -134,7 +156,8 @@ class BulkHostOperations(object):
             local_temp = os.environ.get('TMP', os.environ.get("TMPDIR", os.environ.get("TEMP")))
 
         responses = []
-        for key in self.sessions:
+        self.refresh()
+        for key in self.successful_hosts:
             resp = self.__rtr_admin().execute_admin_command(base_command="get",
                                                             command_string=f"get \"{filename}\"",
                                                             session_id=self.sessions[key]['session_id'], persist=False)
@@ -213,7 +236,7 @@ class BulkHostOperations(object):
 
     def isolate(self):
         req_body = {
-            "ids": self.__host_ids()
+            "ids": self.successful_hosts
         }
         response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="contain", body=req_body)
         if "resources" in response['body'] and len(response['body']['resources']) > 0:
@@ -223,7 +246,7 @@ class BulkHostOperations(object):
 
         if "errors" in response['body'] and len(response['body']['errors']) > 0:
             for error in response['body']['errors']:
-                for aid in self.__host_ids():
+                for aid in self.successful_hosts:
                     if aid in error['message']:
                         yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
                                                                batch_id=self.batch_id,
@@ -232,9 +255,10 @@ class BulkHostOperations(object):
 
     def lift_isolation(self):
         req_body = {
-            "ids": self.__host_ids()
+            "ids": self.successful_hosts
         }
-        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="lift_containment", body=req_body)
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="lift_containment",
+                                                           body=req_body)
         if "resources" in response['body'] and len(response['body']['resources']) > 0:
             for resource in response['body']['resources']:
                 yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
@@ -242,15 +266,16 @@ class BulkHostOperations(object):
 
         if "errors" in response['body'] and len(response['body']['errors']) > 0:
             for error in response['body']['errors']:
-                for aid in self.__host_ids():
+                for aid in self.successful_hosts:
                     if aid in error['message']:
-                        yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
+                        yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
+                                                               batch_id=self.batch_id,
                                                                aid=aid, command="lift_isolation",
                                                                error_msg=error['message'])
 
     def hide_host(self):
         req_body = {
-            "ids": self.__host_ids()
+            "ids": self.successful_hosts
         }
         response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="hide_host", body=req_body)
         if "resources" in response['body'] and len(response['body']['resources']) > 0:
@@ -260,7 +285,7 @@ class BulkHostOperations(object):
 
         if "errors" in response['body'] and len(response['body']['errors']) > 0:
             for error in response['body']['errors']:
-                for aid in self.__host_ids():
+                for aid in self.successful_hosts:
                     if aid in error['message']:
                         yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
                                                                batch_id=self.batch_id,
@@ -269,7 +294,7 @@ class BulkHostOperations(object):
 
     def unhide_host(self):
         req_body = {
-            "ids": self.__host_ids()
+            "ids": self.successful_hosts
         }
         response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="unhide_host", body=req_body)
         if "resources" in response['body'] and len(response['body']['resources']) > 0:
@@ -279,7 +304,7 @@ class BulkHostOperations(object):
 
         if "errors" in response['body'] and len(response['body']['errors']) > 0:
             for error in response['body']['errors']:
-                for aid in self.__host_ids():
+                for aid in self.successful_hosts:
                     if aid in error['message']:
                         yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
                                                                batch_id=self.batch_id,
@@ -288,9 +313,10 @@ class BulkHostOperations(object):
 
     def suppress_detections(self):
         req_body = {
-            "ids": self.__host_ids()
+            "ids": self.successful_hosts
         }
-        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="detection_suppress", body=req_body)
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="detection_suppress",
+                                                           body=req_body)
         if "resources" in response['body'] and len(response['body']['resources']) > 0:
             for resource in response['body']['resources']:
                 yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
@@ -298,7 +324,7 @@ class BulkHostOperations(object):
 
         if "errors" in response['body'] and len(response['body']['errors']) > 0:
             for error in response['body']['errors']:
-                for aid in self.__host_ids():
+                for aid in self.successful_hosts:
                     if aid in error['message']:
                         yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
                                                                batch_id=self.batch_id,
@@ -307,9 +333,10 @@ class BulkHostOperations(object):
 
     def unsuppress_detections(self):
         req_body = {
-            "ids": self.__host_ids()
+            "ids": self.successful_hosts
         }
-        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="detection_unsuppress", body=req_body)
+        response = self._auth.get_falcon_harness().command("PerformActionV2", action_name="detection_unsuppress",
+                                                           body=req_body)
         if "resources" in response['body'] and len(response['body']['resources']) > 0:
             for resource in response['body']['resources']:
                 yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client, batch_id=self.batch_id,
@@ -317,7 +344,7 @@ class BulkHostOperations(object):
 
         if "errors" in response['body'] and len(response['body']['errors']) > 0:
             for error in response['body']['errors']:
-                for aid in self.__host_ids():
+                for aid in self.successful_hosts:
                     if aid in error['message']:
                         yield BulkOperationOutcome.from_action(auth=self._auth, client=self.client,
                                                                batch_id=self.batch_id,

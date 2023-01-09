@@ -10,21 +10,32 @@ sys.path.append(os.path.abspath('src'))
 import dtCrowdstrike
 from dtCrowdstrike import CrowdstrikeClient
 
-sample_script = '#!/bin/sh\n[ -e "ADG-sample.out" ] && rm "ADG-sample.out"\nchmod u+x ./ADG-Sample.sh\n./ADG-Sample.sh\n[ -e "ADG-Sample.sh" ] && rm "ADG-Sample.sh"'
-clean_sample_script = '#!/bin/sh\n[ -e "ADG-sample.out" ] && rm "ADG-sample.out"'
+nix_sample_script = '#!/bin/sh\n[ -e "ADG-sample.out" ] && rm "ADG-sample.out"\nchmod u+x ./ADG-Sample.sh\n./ADG-Sample.sh\n[ -e "ADG-Sample.sh" ] && rm "ADG-Sample.sh"'
+nix_clean_sample_script = '#!/bin/sh\n[ -e "ADG-sample.out" ] && rm "ADG-sample.out"'
 
-initial_script = '#!/bin/sh\n[ -e "ADG-initial.out" ] && rm "ADG-initial.out"\nchmod u+x ./ADG-Initial.sh\n./ADG-Initial.sh\n[ -e "ADG-Initial.sh" ] && rm "ADG-Initial.sh"'
-clean_initial_script = '#!/bin/sh\n[ -e "ADG-initial.out" ] && rm "ADG-initial.out"'
+nix_initial_script = '#!/bin/sh\n[ -e "ADG-initial.out" ] && rm "ADG-initial.out"\nchmod u+x ./ADG-Initial.sh\n./ADG-Initial.sh\n[ -e "ADG-Initial.sh" ] && rm "ADG-Initial.sh"'
+nix_clean_initial_script = '#!/bin/sh\n[ -e "ADG-initial.out" ] && rm "ADG-initial.out"'
 
 print(f"{dtCrowdstrike.title()} - Version: {dtCrowdstrike.version()}")
+
 with CrowdstrikeClient(client_secret=os.environ['CLIENT_SECRET'], client_id=os.environ['CLIENT_ID']) as client:
-    group = client.create_dynamic_host_group(name="AD.SBSBMI.DEV01", description="BMI AWS Domain Instance Machines",
-                                             rule='machine_domain:"AD.SBSBMI.DEV"')
-    print(group.get_description())
-    print(group.set_description("MMMMM"))
-    print(group.get_description())
-    print(group.delete())
-    print(group.get_description())
+    hosts = []
+    hosts.append(client.get_host("SVWCTX02"))
+    hosts.append(client.get_host_by_id("cb6c30b4c57447f4be85ec5937c26c08"))
+
+    with client.get_utilities().bulk_host_operations(hosts) as bulk_host_operations:
+        print(f'All successful: {bulk_host_operations.all_sessions_connected()}')
+        while bulk_host_operations.file_exists('C:/ADG-initial.out.runningv'):
+            print("watiting")
+
+
+    # group = client.create_dynamic_host_group(name="AD.SBSBMI.DEV01", description="BMI AWS Domain Instance Machines",
+    #                                          rule='machine_domain:"AD.SBSBMI.DEV"')
+    # print(group.get_description())
+    # print(group.set_description("MMMMM"))
+    # print(group.get_description())
+    # print(group.delete())
+    # print(group.get_description())
 
     # hosts = []
     # hosts.append(client.get_host_by_id("cb84837f1bf84718ac228cb8fd24923e"))
