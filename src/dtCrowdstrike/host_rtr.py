@@ -157,6 +157,7 @@ class RealTimeResponse(object):
                         logging.warning(download)  # Print the API response to stdout
                     else:
                         temp_path = f"{local_temp}/{outcome['cloud_request_id']}"
+                        os.makedirs(temp_path, exist_ok=True)
                         with open(  # We received a valid file download
                                 f"{temp_path}/{outcome['cloud_request_id']}.zip",
                                 "wb") as save_file:
