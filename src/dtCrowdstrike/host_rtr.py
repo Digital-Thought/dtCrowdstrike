@@ -6,6 +6,7 @@ import time
 import py7zr
 import csv
 import io
+import shutil
 
 from falconpy import RealTimeResponse as RTR, RealTimeResponseAdmin as RTRAdmin
 
@@ -155,26 +156,28 @@ class RealTimeResponse(object):
                     if isinstance(download, dict):  # Our download failed for some reason
                         logging.warning(download)  # Print the API response to stdout
                     else:
+                        temp_path = f"{local_temp}/{outcome['cloud_request_id']}"
                         with open(  # We received a valid file download
-                                f"{local_temp}/{outcome['cloud_request_id']}.zip",
+                                f"{temp_path}/{outcome['cloud_request_id']}.zip",
                                 "wb") as save_file:
                             save_file.write(download)
                         archive = py7zr.SevenZipFile(  # nosec - Open our downloaded archive file using the
-                            f"{local_temp}/{outcome['cloud_request_id']}.zip",
+                            f"{temp_path}/{outcome['cloud_request_id']}.zip",
                             # password of "infected". Bandit will consider this
                             mode="r",  # hard-coded password a low threat and cry about it.
                             password="infected"
                         )
 
                         file_target = archive.getnames()[0]
-                        archive.extractall(f"{local_temp}")
+                        archive.extractall(f"{temp_path}")
                         enc = "utf-8"
-                        with open(f"{local_temp}/{file_target}", "rb") as ii:
+                        with open(f"{temp_path}/{file_target}", "rb") as ii:
                             data = ii.read()
 
                         archive.close()
-                        os.remove(f"{local_temp}/{outcome['cloud_request_id']}.zip")
-                        os.remove(f"{local_temp}/{file_target}")
+                        os.remove(f"{temp_path}/{outcome['cloud_request_id']}.zip")
+                        os.remove(f"{temp_path}/{file_target}")
+                        shutil.rmtree(f"{temp_path}", ignore_errors=True)
 
                         return data
 
