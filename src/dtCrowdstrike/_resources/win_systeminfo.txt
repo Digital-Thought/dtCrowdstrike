@@ -1,0 +1,1 @@
+systeminfo /FO CSV

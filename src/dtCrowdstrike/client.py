@@ -113,8 +113,8 @@ class CrowdstrikeClient(object):
         for host in self.find_hosts(_filter):
             yield host
 
-    def get_online_servers(self):
-        _filter = "(last_seen:>='now-24h' + last_seen:<'now') + product_type_desc:'Server'"
+    def get_online_servers(self, in_last_hours='24'):
+        _filter = f"(last_seen:>='now-{in_last_hours}h' + last_seen:<'now') + product_type_desc:'Server'"
         for host in self.find_hosts(_filter):
             yield host
 

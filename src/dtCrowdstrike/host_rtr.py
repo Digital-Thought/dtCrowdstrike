@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import random
@@ -7,6 +8,8 @@ import py7zr
 import csv
 import io
 import shutil
+import json
+
 
 from falconpy import RealTimeResponse as RTR, RealTimeResponseAdmin as RTRAdmin
 
@@ -95,6 +98,77 @@ class RealTimeResponse(object):
         outcome = self.run_command(command="runscript", timeout=3600, parameters=f"-Raw=```{script}```")
         outcome['script'] = script
         return outcome
+
+    def __get_win_system_info(self):
+        with open(os.path.dirname(__file__) + "/_resources/win_systeminfo.txt", 'r') as ps1:
+            script = ps1.read()
+
+        result = self.runscript(script)
+        if not result['error']:
+            output = result['stdout'].strip()
+            detail = {}
+            dict_reader = csv.DictReader(io.StringIO(output))
+            for row in dict_reader:
+                for key in row:
+                    detail[key] = row[key]
+
+            return detail
+        else:
+            raise Exception(result['stderr'])
+
+    def __get_nix_system_info(self):
+        with open(os.path.dirname(__file__) + "/_resources/nix_systeminfo.txt", 'r') as ps1:
+            script = ps1.read()
+
+        result = self.runscript(script)
+        if not result['error']:
+            detail = {}
+            meminfo = result['stdout'][:result['stdout'].find("{")]
+            for line in meminfo.strip().split("\n"):
+                detail[line.split(":")[0].strip()] = line.split(":")[1].strip()
+            json_data = result['stdout'].replace(result['stdout'][:result['stdout'].find("{")],"").strip()
+            cpu_info = json.loads(json_data)
+            print(cpu_info)
+            for entry in cpu_info["lscpu"]:
+                detail[entry['field']] = entry['data']
+
+            return detail
+        else:
+            raise Exception(result['stderr'])
+
+    def get_system_info(self):
+        if self.host.is_windows():
+            return self.__get_win_system_info()
+        elif self.host.is_linux():
+            return self.__get_nix_system_info()
+        else:
+            raise Exception("Host operating system not supported for System Information gathering")
+        #     with open(os.path.dirname(__file__) + "/_resources/win_cpu_memory_specs.txt", 'r') as ps1:
+        #         script = ps1.read()
+        #
+        #     result = self.runscript(script)
+        #     if not result['error']:
+        #         output = result['stdout'].strip()
+        #         details = {
+        #             "total_physical_memory": output.split('\n')[0].split(":")[1].strip(),
+        #             "total_available_memory": output.split('\n')[1].split(":")[1].strip(),
+        #         }
+        #         cpu_details = ""
+        #         for line in output.replace(output.split('\n')[0], "").replace(output.split('\n')[1], "").strip().split(
+        #                 "\n"):
+        #             if len(line.strip()) > 0:
+        #                 cpu_details += f"{line}\n"
+        #         cpu_details = cpu_details.strip()
+        #         dict_reader = csv.DictReader(io.StringIO(cpu_details))
+        #         for row in dict_reader:
+        #             for key in row:
+        #                 details[f'cpu_{key.lower()}'] = row[key]
+        #
+        #         return details
+        #     else:
+        #         return {'cpu_mem_stdout': result['stdout'], 'cpu_mem_stderr': result['stderr']}
+        # else:
+        #     return {}
 
     def get_counters(self):
         if self.host.is_windows():

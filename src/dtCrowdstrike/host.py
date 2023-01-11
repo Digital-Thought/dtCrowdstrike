@@ -52,8 +52,18 @@ class Host(object):
         self.__get_updated_details(force=True)
         return self.get_host_details()['status']
 
-    def get_host_details(self):
-        return self.__get_updated_details()
+    def get_host_details(self, extended=False):
+        details = self.__get_updated_details()
+        if extended:
+            try:
+                with self.get_realtime_response() as rtr:
+                    ex_details = rtr.get_system_info()
+                    for key in ex_details:
+                        details[key] = ex_details[key]
+            except Exception as ex:
+                logging.error(str(ex))
+                details['extended_details_error'] = str(ex)
+        return details
 
     def get_summary_host_details(self):
         try:
