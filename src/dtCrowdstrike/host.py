@@ -48,6 +48,10 @@ class Host(object):
     def __hosts(self):
         return Hosts(auth_object=self._auth.get_falcon_auth())
 
+    def get_device_login_history(self):
+        response = self.__hosts().query_device_login_history(ids=[self.aid])
+        return response
+
     def get_host_status(self):
         self.__get_updated_details(force=True)
         return self.get_host_details()['status']
