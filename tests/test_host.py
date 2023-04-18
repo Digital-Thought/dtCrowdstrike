@@ -1,7 +1,8 @@
 import json
 import os
 import sys
-import time
+import glob
+import pandas as pd
 
 # Import our sibling src folder into the path
 sys.path.append(os.path.abspath('src'))
@@ -10,24 +11,46 @@ sys.path.append(os.path.abspath('src'))
 import dtCrowdstrike
 from dtCrowdstrike.client import CrowdstrikeClient
 
-nix_sample_script = '#!/bin/sh\n[ -e "ADG-sample.out" ] && rm "ADG-sample.out"\nchmod u+x ./ADG-Sample.sh\n./ADG-Sample.sh\n[ -e "ADG-Sample.sh" ] && rm "ADG-Sample.sh"'
-nix_clean_sample_script = '#!/bin/sh\n[ -e "ADG-sample.out" ] && rm "ADG-sample.out"'
+print('glob')
+system_infos = []
+for name in glob.glob('/Users/matthewe/Downloads/untitled folder 4/adg/**/*.json', recursive = True):
+    with open(name, "r") as in_json:
+        system_infos.append(json.load(in_json)['system_info'])
 
-nix_initial_script = '#!/bin/sh\n[ -e "ADG-initial.out" ] && rm "ADG-initial.out"\nchmod u+x ./ADG-Initial.sh\n./ADG-Initial.sh\n[ -e "ADG-Initial.sh" ] && rm "ADG-Initial.sh"'
-nix_clean_initial_script = '#!/bin/sh\n[ -e "ADG-initial.out" ] && rm "ADG-initial.out"'
+data = {"ou": []}
+processed_count = 0
+found_keys = ['ou']
+for detail in system_infos:
+    for key in detail:
+        if isinstance(detail[key], str) or isinstance(detail[key], int) or isinstance(detail[key], bool):
+            if key not in found_keys:
+                found_keys.append(key)
 
-print(f"{dtCrowdstrike.title()} - Version: {dtCrowdstrike.version()}")
+for detail in system_infos:
+    processed_keys = []
+    for key in found_keys:
+        if key in detail and (isinstance(detail[key], str) or isinstance(detail[key], int) or isinstance(detail[key], bool)):
+            if key not in data:
+                data[key] = []
+                if processed_count > 0:
+                    for x in range(processed_count):
+                        data[key].append(None)
 
-with CrowdstrikeClient(client_secret=os.environ['CLIENT_SECRET'], client_id=os.environ['CLIENT_ID']) as client:
-    details = []
-    # client.get_host("ARTSIMLGC01.sbsms.sbs.com.au").get_host_details(extended=True)
-    # _filter = f"(last_seen:>='now-720h' + last_seen:<'now') + hostname:*!'L-*'"
-    hosts = list(client.get_online_servers("720"))
-    # client.get_utilities().bulk_exporter().export_hosts_as_excel(hosts, excel_file="hosts.xlsx")
-    for host in hosts:
-        print(host.get_hostname())
-        details.append(host.get_host_details(extended=True))
+            data[key].append(detail[key])
+        elif key == 'ou' and key in detail:
+            data[key].append("/".join(detail[key]))
+        elif key == 'ou' and key not in detail:
+            data[key].append(None)
+        else:
+            if key not in data:
+                data[key] = []
+            data[key].append(None)
 
-    with open('out.json', 'w') as jout:
-        json.dump(details, jout, indent=4)
-    # client.get_utilities().bulk_exporter().export_hosts_as_excel(hosts, excel_file="servers.xlsx")
+
+    # for key in data:
+    #     if key not in processed_keys:
+    #         data[key].append(None)
+
+df = pd.DataFrame(data)
+df.to_excel('servers extended_detail_Jan2023.xlsx', sheet_name="Servers", index=False)
+print('done')
