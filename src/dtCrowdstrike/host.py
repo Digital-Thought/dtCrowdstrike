@@ -49,8 +49,15 @@ class Host(object):
         return Hosts(auth_object=self._auth.get_falcon_auth())
 
     def get_device_login_history(self):
-        response = self.__hosts().query_device_login_history(ids=[self.aid])
-        return response
+        try:
+            details = self.__hosts().query_device_login_history(ids=[self.aid])
+            if 'resources' in details['body'] and len(details['body']['resources']) == 1:
+                return details['body']['resources'][0].get("recent_logins", [])
+            else:
+                raise Exception(f'Failed to read host details. {str(details)}')
+        except Exception as ex:
+            logging.exception(f'Failed to read host login activity. {str(ex)}')
+            raise ex
 
     def get_host_status(self):
         self.__get_updated_details(force=True)
