@@ -20,3 +20,10 @@ class Utilities(object):
 
     def bulk_exporter(self):
         return BulkExporter(auth=self._auth, client=self.client)
+
+    def count(self, hosts):
+        i = 0
+        for host in hosts:
+            i += 1
+
+        return i
