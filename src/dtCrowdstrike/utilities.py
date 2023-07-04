@@ -23,7 +23,7 @@ class Utilities(object):
 
     def count(self, hosts):
         i = 0
-        for host in hosts:
+        for host in hosts():
             i += 1
 
         return i
